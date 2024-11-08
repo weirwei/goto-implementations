@@ -120,10 +120,11 @@ export function activate(context: vscode.ExtensionContext) {
                             const doc = await vscode.workspace.openTextDocument(loc.uri);
                             const text = doc.getText(loc.range);
                             const preview = text.trim().split('\n')[0];
-                            console.log('Found implementation:', preview);
+                            // Relative Path
+                            const relativePath = vscode.workspace.asRelativePath(loc.uri);
                             return {
-                                label: preview,
-                                description: loc.uri.fsPath,
+                                label: relativePath,     
+                                detail: preview,         
                                 location: loc
                             };
                         }));
