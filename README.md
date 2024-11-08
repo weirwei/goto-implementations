@@ -46,8 +46,17 @@ No known issues at this time. If you discover any problems, please submit an iss
 
 ## Release Notes
 
-### 1.0.0
+### 0.0.1
 
 - Initial release
 - Support for Go interface method implementation navigation
 - Support for direct jump to single implementation and selection list for multiple implementations
+
+### 0.1.0
+
+- Change engine to vscode 1.93.0 (support cursor)
+
+### 0.2.0
+
+- Fix regex bugs
+- Multiple implementations jump label show relative path
