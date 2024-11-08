@@ -2,58 +2,71 @@ import * as vscode from 'vscode';
 
 class InterfaceCodeLensProvider implements vscode.CodeLensProvider {
     // Regular expression for detecting interface methods
-    private interfaceMethodRegex = /^\s*(\w+)\([^)]*\)(?:\s+\([^)]*\))?\s*(?:\w+\s*{)?$/;
+    private interfaceMethodRegex = /^\s*(\w+)\s*\([^)]*\)\s*(\([^)]*\)?|[^\n]*)?$/;
+    private interfaceStartRegex = /^type\s+(\w+)\s+interface\s*{/;
 
     async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[]> {
         const codeLenses: vscode.CodeLens[] = [];
         let inInterface = false;
         let interfaceName = '';
+        let bracketCount = 0;
 
         console.log('Start scanning document for interfaces...');
 
         for (let i = 0; i < document.lineCount; i++) {
             const line = document.lineAt(i);
-            const lineText = line.text.trim();
+            const lineText = line.text;
+            const trimmedText = lineText.trim();
 
             // Check if entering or leaving interface definition
-            if (lineText.includes("interface") && lineText.includes("{")) {
+            const interfaceMatch = trimmedText.match(this.interfaceStartRegex);
+            if (interfaceMatch) {
                 inInterface = true;
-                // Extract interface name
-                const matches = lineText.match(/type\s+(\w+)\s+interface/);
-                if (matches) {
-                    interfaceName = matches[1];
-                }
+                bracketCount = 1;
+                interfaceName = interfaceMatch[1];
                 console.log(`Found interface at line ${i + 1}: ${interfaceName}`);
                 continue;
             }
 
-            if (lineText === "}") {
-                inInterface = false;
-                interfaceName = '';
-                continue;
-            }
+            // Check bracket
+            if (inInterface) {
+                bracketCount += (lineText.match(/{/g) || []).length;
+                bracketCount -= (lineText.match(/}/g) || []).length;
 
-            // If inside interface, check method definition
-            if (inInterface && this.interfaceMethodRegex.test(lineText)) {
-                const methodMatch = lineText.match(/^\s*(\w+)\(/);
-                if (methodMatch) {
-                    const methodName = methodMatch[1];
-                    console.log(`Found method in interface ${interfaceName}: ${methodName}`);
-                    
-                    // Get exact position of method name
-                    const methodStart = line.text.indexOf(methodName);
-                    const methodPosition = new vscode.Position(i, methodStart);
-                    const methodRange = new vscode.Range(
-                        methodPosition,
-                        new vscode.Position(i, methodStart + methodName.length)
-                    );
+                if (bracketCount === 0) {
+                    inInterface = false;
+                    interfaceName = '';
+                    continue;
+                }
 
-                    const codeLens = new vscode.CodeLens(methodRange, {
-                        title: "➜ Go to implementations",
-                        command: "goto-implementations.gotoImplementation",
-                        arguments: [document.uri, methodRange, methodName]
-                    });
-                    codeLenses.push(codeLens);
+                // Skip comment lines
+                if (trimmedText.startsWith('//')) {
+                    continue;
+                }
+
+                // If inside interface, check method definition
+                if (this.interfaceMethodRegex.test(trimmedText)) {
+                    const methodMatch = trimmedText.match(/^\s*(\w+)\s*\(/);
+                    if (methodMatch) {
+                        const methodName = methodMatch[1];
+                        console.log(`Found method in interface ${interfaceName}: ${methodName}`);
+                        
+                        // Get exact position of method name
+                        const methodStart = lineText.indexOf(methodName);
+                        const methodPosition = new vscode.Position(i, methodStart);
+                        const methodRange = new vscode.Range(
+                            methodPosition,
+                            new vscode.Position(i, methodStart + methodName.length)
+                        );
+
+                        // Create codeLens
+                        const codeLens = new vscode.CodeLens(methodRange, {
+                            title: "➜ Go to implementations",
+                            command: "goto-implementations.gotoImplementation",
+                            arguments: [document.uri, methodRange, methodName]
+                        });
+                        codeLenses.push(codeLens);
+                    }
                 }
             }
         }
