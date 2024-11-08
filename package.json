@@ -1,9 +1,10 @@
 {
   "name": "goto-implementations",
-  "displayName": "goto_implementations",
+  "displayName": "Goto Implementations",
   "description": "A VSCode extension that provides code lens to easily navigate to implementations in Go code",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "weirwei",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -27,12 +28,6 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "goto-implementations.gotoImplementation",
-        "title": "Go to Implementation"
-      }
-    ]
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",

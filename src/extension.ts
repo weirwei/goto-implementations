@@ -61,7 +61,7 @@ class InterfaceCodeLensProvider implements vscode.CodeLensProvider {
 
                         // Create codeLens
                         const codeLens = new vscode.CodeLens(methodRange, {
-                            title: "➜ Go to implementations",
+                            title: "goto impl",
                             command: "goto-implementations.gotoImplementation",
                             arguments: [document.uri, methodRange, methodName]
                         });

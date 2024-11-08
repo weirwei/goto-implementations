@@ -18,7 +18,7 @@ type Reader interface {
 }
 ```
 
-The extension will display a "➜ Go to implementations" link above the `Read` method. When clicking the link:
+The extension will display a "goto impl" link above the `Read` method. When clicking the link:
 - If there's only one implementation, it will jump directly to it
 - If there are multiple implementations, a selection list will appear for you to choose
 
@@ -28,7 +28,7 @@ The extension will display a "➜ Go to implementations" link above the `Read` m
 ## Usage
 
 1. After installing the extension, open any file containing Go interface definitions
-2. You'll see "➜ Go to implementations" links appear above interface methods
+2. You'll see "goto impl" links appear above interface methods
 3. Click the link to jump to the implementation
 
 ## How It Works
@@ -43,20 +43,3 @@ The extension automatically scans Go code for interface definitions and adds lin
 ## Known Issues
 
 No known issues at this time. If you discover any problems, please submit an issue on the GitHub repository.
-
-## Release Notes
-
-### 0.0.1
-
-- Initial release
-- Support for Go interface method implementation navigation
-- Support for direct jump to single implementation and selection list for multiple implementations
-
-### 0.1.0
-
-- Change engine to vscode 1.93.0 (support cursor)
-
-### 0.2.0
-
-- Fix regex bugs
-- Multiple implementations jump label show relative path
