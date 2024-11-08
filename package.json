@@ -2,7 +2,7 @@
   "name": "goto-implementations",
   "displayName": "goto_implementations",
   "description": "A VSCode extension that provides code lens to easily navigate to implementations in Go code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "weirwei",
   "license": "MIT",
   "repository": {
