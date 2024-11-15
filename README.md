@@ -1,4 +1,4 @@
-# Goto Implementations
+# Goto Implementations For Go
 
 A Visual Studio Code extension that helps you quickly navigate to interface method implementations in Go code.
 
