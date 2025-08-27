@@ -4,6 +4,12 @@ All notable changes to the "goto-implementations" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.0] - 2025-08-27
+
+### Added
+
+- **New "goto iface" feature**: Added support for jumping from struct method implementations to their corresponding interface methods
+
 ## [0.4.0] - 2025-08-27
 
 ### Added

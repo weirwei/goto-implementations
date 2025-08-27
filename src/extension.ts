@@ -14,6 +14,14 @@ interface InterfaceContext {
     bracketCount: number;
 }
 
+interface StructMethodInfo {
+    line: number;
+    methodName: string;
+    receiverType: string;
+    startLine: number;
+    endLine: number;
+}
+
 class InterfaceCodeLensProvider implements vscode.CodeLensProvider {
     // Regular expressions
     private readonly interfaceStartRegex = /^type\s+(\w+)\s+interface\s*{/;
@@ -26,13 +34,25 @@ class InterfaceCodeLensProvider implements vscode.CodeLensProvider {
 
     async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[]> {
         const codeLenses: vscode.CodeLens[] = [];
-        const interfaces = this.findInterfaces(document);
         
+        // Get interface method code lenses
+        const interfaces = this.findInterfaces(document);
         console.log(`Found ${interfaces.length} interfaces in document`);
         
         for (const interfaceInfo of interfaces) {
             const interfaceCodeLenses = this.processInterface(document, interfaceInfo);
             codeLenses.push(...interfaceCodeLenses);
+        }
+        
+        // Get struct method code lenses for "goto iface"
+        const structMethods = this.findStructMethods(document);
+        console.log(`Found ${structMethods.length} struct methods in document`);
+        
+        for (const methodInfo of structMethods) {
+            const ifaceCodeLens = this.createInterfaceCodeLens(document, methodInfo);
+            if (ifaceCodeLens) {
+                codeLenses.push(ifaceCodeLens);
+            }
         }
         
         return codeLenses;
@@ -247,6 +267,82 @@ class InterfaceCodeLensProvider implements vscode.CodeLensProvider {
         });
     }
 
+    /**
+     * Find all struct methods in the document
+     */
+    private findStructMethods(document: vscode.TextDocument): StructMethodInfo[] {
+        const methods: StructMethodInfo[] = [];
+        
+        for (let i = 0; i < document.lineCount; i++) {
+            const line = document.lineAt(i);
+            const lineText = line.text;
+            const trimmedText = lineText.trim();
+            
+            // Skip comment lines
+            if (trimmedText.startsWith('//')) {
+                continue;
+            }
+            
+            // Check for method definition: func (receiver *Type) MethodName(...)
+            const methodMatch = trimmedText.match(/^func\s*\(\s*(\w+)?\s*\*?(\w+)\s*\)\s*(\w+)\s*\(/);
+            if (methodMatch) {
+                const receiverName = methodMatch[1] || '';
+                const receiverType = methodMatch[2];
+                const methodName = methodMatch[3];
+                
+                // Find method end
+                let endLine = i;
+                let parenCount = 1;
+                let bracketCount = 0;
+                
+                for (let j = i + 1; j < document.lineCount; j++) {
+                    const nextLine = document.lineAt(j).text;
+                    parenCount += (nextLine.match(/\(/g) || []).length;
+                    parenCount -= (nextLine.match(/\)/g) || []).length;
+                    bracketCount += (nextLine.match(/{/g) || []).length;
+                    bracketCount -= (nextLine.match(/}/g) || []).length;
+                    
+                    // Method ends when parentheses are balanced and we're outside any function body
+                    if (parenCount === 0 && bracketCount <= 0) {
+                        endLine = j;
+                        break;
+                    }
+                }
+                
+                methods.push({
+                    line: i,
+                    methodName,
+                    receiverType,
+                    startLine: i,
+                    endLine
+                });
+                
+                console.log(`Found struct method: ${receiverType}.${methodName} at line ${i + 1}`);
+            }
+        }
+        
+        return methods;
+    }
+
+    /**
+     * Create a CodeLens for jumping from struct method to interface
+     */
+    private createInterfaceCodeLens(document: vscode.TextDocument, methodInfo: StructMethodInfo): vscode.CodeLens | null {
+        const startLine = document.lineAt(methodInfo.line);
+        const methodStart = startLine.text.indexOf(methodInfo.methodName);
+        const methodPosition = new vscode.Position(methodInfo.line, methodStart);
+        const methodRange = new vscode.Range(
+            methodPosition,
+            new vscode.Position(methodInfo.line, methodStart + methodInfo.methodName.length)
+        );
+
+        return new vscode.CodeLens(methodRange, {
+            title: "goto iface",
+            command: "goto-implementations.gotoInterface",
+            arguments: [document.uri, methodRange, methodInfo.methodName, methodInfo.receiverType]
+        });
+    }
+
 }
 
 /**
@@ -274,6 +370,75 @@ function findMethodStart(document: vscode.TextDocument, position: vscode.Positio
     // Fallback to current position
     return position;
 }
+
+/**
+ * Check if a given position is within an interface block.
+ */
+async function checkIfInInterface(document: vscode.TextDocument, position: vscode.Position): Promise<boolean> {
+    const interfaces = findInterfacesInDocument(document);
+    for (const iface of interfaces) {
+        if (position.line >= iface.startLine && position.line <= iface.endLine) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Attempt to find the interface name at a given position.
+ */
+async function getInterfaceName(document: vscode.TextDocument, position: vscode.Position): Promise<string> {
+    const interfaces = findInterfacesInDocument(document);
+    for (const iface of interfaces) {
+        if (position.line >= iface.startLine && position.line <= iface.endLine) {
+            return iface.name;
+        }
+    }
+    return 'Unknown';
+}
+
+/**
+ * Find all interfaces in a document (helper function for goto interface)
+ */
+function findInterfacesInDocument(document: vscode.TextDocument): InterfaceContext[] {
+    const interfaces: InterfaceContext[] = [];
+    let currentInterface: InterfaceContext | null = null;
+    
+    for (let i = 0; i < document.lineCount; i++) {
+        const line = document.lineAt(i);
+        const trimmedText = line.text.trim();
+        
+        // Check for interface start
+        const interfaceMatch = trimmedText.match(/^type\s+(\w+)\s+interface\s*{/);
+        if (interfaceMatch) {
+            currentInterface = {
+                name: interfaceMatch[1],
+                startLine: i,
+                endLine: -1,
+                bracketCount: 1
+            };
+            continue;
+        }
+        
+        // Update bracket count for current interface
+        if (currentInterface) {
+            const lineText = line.text;
+            currentInterface.bracketCount += (lineText.match(/{/g) || []).length;
+            currentInterface.bracketCount -= (lineText.match(/}/g) || []).length;
+            
+            // Check if interface ends
+            if (currentInterface.bracketCount === 0) {
+                currentInterface.endLine = i;
+                interfaces.push(currentInterface);
+                currentInterface = null;
+            }
+        }
+    }
+    
+    return interfaces;
+}
+
+
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension "goto-implementations" is now active!');
@@ -368,7 +533,108 @@ export function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    context.subscriptions.push(disposable);
+    // Register goto interface command
+    const gotoInterfaceDisposable = vscode.commands.registerCommand(
+        'goto-implementations.gotoInterface',
+        async (uri: vscode.Uri, range: vscode.Range, methodName: string, receiverType: string) => {
+            try {
+                console.log('Goto interface command triggered:');
+                console.log('- URI:', uri.toString());
+                console.log('- Method name:', methodName);
+                console.log('- Receiver type:', receiverType);
+                console.log('- Position:', `line ${range.start.line + 1}, column ${range.start.character}`);
+
+                // Use VSCode's built-in implementation search to find interface methods
+                // We'll search for implementations of the current method, then filter for interface methods
+                const implementations = await vscode.commands.executeCommand<vscode.Location[]>(
+                    'vscode.executeImplementationProvider',
+                    uri,
+                    range.start
+                );
+
+                console.log('Number of implementations found:', implementations?.length || 0);
+
+                if (implementations && implementations.length > 0) {
+                    // Filter for interface methods (they won't have func keyword)
+                    const interfaceLocations: vscode.Location[] = [];
+                    
+                    for (const location of implementations) {
+                        try {
+                            const doc = await vscode.workspace.openTextDocument(location.uri);
+                            const text = doc.getText(location.range);
+                            
+                            // Interface methods don't start with 'func', they're just method signatures
+                            // Check if this is an interface method by looking at the context
+                            const line = doc.lineAt(location.range.start.line);
+                            const lineText = line.text.trim();
+                            
+                            // Interface methods typically look like: MethodName(params) returnType
+                            // They don't have 'func' keyword and are inside interface blocks
+                            if (!lineText.startsWith('func') && lineText.includes(methodName + '(')) {
+                                // Check if we're inside an interface block
+                                const isInInterface = await checkIfInInterface(doc, location.range.start);
+                                if (isInInterface) {
+                                    interfaceLocations.push(location);
+                                }
+                            }
+                        } catch (error) {
+                            console.log(`Error processing location:`, error);
+                        }
+                    }
+
+                    console.log('Number of interface locations found:', interfaceLocations.length);
+
+                    if (interfaceLocations.length > 0) {
+                        if (interfaceLocations.length === 1) {
+                            // Jump directly to the interface method
+                            const location = interfaceLocations[0];
+                            console.log('Jumping to interface method:', location.uri.toString());
+                            await vscode.window.showTextDocument(location.uri, {
+                                selection: location.range
+                            });
+                        } else {
+                            // Show selection list for multiple interfaces
+                            const items = await Promise.all(interfaceLocations.map(async loc => {
+                                const doc = await vscode.workspace.openTextDocument(loc.uri);
+                                const relativePath = vscode.workspace.asRelativePath(loc.uri);
+                                
+                                // Try to find the interface name
+                                const interfaceName = await getInterfaceName(doc, loc.range.start);
+                                
+                                return {
+                                    label: relativePath,
+                                    detail: `${interfaceName}.${methodName}`,
+                                    location: loc
+                                };
+                            }));
+
+                            const selected = await vscode.window.showQuickPick(items, {
+                                placeHolder: `Select interface method ${methodName}`
+                            });
+
+                            if (selected) {
+                                console.log('User selected interface:', selected.label);
+                                await vscode.window.showTextDocument(selected.location.uri, {
+                                    selection: selected.location.range
+                                });
+                            }
+                        }
+                    } else {
+                        console.log('No interface methods found');
+                        vscode.window.showInformationMessage(`No interface methods found for ${methodName}`);
+                    }
+                } else {
+                    console.log('No implementations found');
+                    vscode.window.showInformationMessage(`No implementations found for ${methodName}`);
+                }
+            } catch (error) {
+                console.error('Error occurred while finding interface methods:', error);
+                vscode.window.showErrorMessage('Error while finding interface methods: ' + error);
+            }
+        }
+    );
+
+    context.subscriptions.push(disposable, gotoInterfaceDisposable);
 }
 
 export function deactivate() {}
