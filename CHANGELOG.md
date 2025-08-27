@@ -4,6 +4,16 @@ All notable changes to the "goto-implementations" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.4.0] - 2025-08-27
+
+### Added
+
+- Optimized the display information of goto implementation, now shows as `ImplementationClass.MethodName`
+
+### Fixed
+
+- Fixed the issue where multi-line Go functions could not display goto impl
+
 ## [0.3.0] - 2024-11-08
 
 ### Changed

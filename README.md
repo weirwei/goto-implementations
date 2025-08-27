@@ -40,6 +40,3 @@ The extension automatically scans Go code for interface definitions and adds lin
 3. Shows a selection list if multiple implementations are found
 4. Displays a notification if no implementations are found
 
-## Known Issues
-
-No known issues at this time. If you discover any problems, please submit an issue on the GitHub repository.
